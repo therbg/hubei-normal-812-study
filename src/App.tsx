@@ -8,9 +8,11 @@ import {
   totalTopicCount,
   type MemorizationCard,
 } from "./data";
+import { buildFrameworkStudyCard } from "./study-profiles";
 
 type Theme = "academy" | "sprint" | "calm";
 type View = "overview" | "outline" | "cards" | "practice" | "mock";
+type AnswerMode = "outline" | "standard" | "high";
 
 const views: { id: View; label: string; mark: string }[] = [
   { id: "overview", label: "今日总览", mark: "今" },
@@ -42,6 +44,9 @@ function ClozeAnswer({
   onReveal: (keyword: string) => void;
 }) {
   const keywords = [...card.keywords].sort((a, b) => b.length - a.length);
+  if (keywords.length === 0) {
+    return <p className="answer-copy">{card.answer}</p>;
+  }
   const pattern = new RegExp(`(${keywords.map(escapeRegExp).join("|")})`, "g");
   const parts = card.answer.split(pattern);
 
@@ -107,13 +112,253 @@ function getTopicSummary(topic: string, chapterTitle: string) {
   return `本知识点属于“${chapterTitle}”。复习时依次掌握概念或对象、代表材料、核心特征和文学史意义。`;
 }
 
+type CardPlacement = {
+  subjectId: "ancient" | "modern";
+  partTitle: string;
+  chapterTitle: string;
+  topic?: string;
+  order: number;
+};
+
+const legacyCardPlacements: Record<string, CardPlacement> = {
+  "shiji-value": {
+    subjectId: "ancient",
+    partTitle: "第一编 先秦两汉魏晋南北朝文学",
+    chapterTitle: "第五章 汉代文学",
+    topic: "《史记》人物传记的文学价值",
+    order: 2,
+  },
+  "tao-poetry": {
+    subjectId: "ancient",
+    partTitle: "第一编 先秦两汉魏晋南北朝文学",
+    chapterTitle: "第七章 陶渊明",
+    topic: "陶渊明田园诗的思想内容与艺术特色",
+    order: 2,
+  },
+  "libai-art": {
+    subjectId: "ancient",
+    partTitle: "第二编 唐五代、宋代文学",
+    chapterTitle: "第三章 李白",
+    topic: "李白诗歌的艺术成就",
+    order: 3,
+  },
+  "dufu-art": {
+    subjectId: "ancient",
+    partTitle: "第二编 唐五代、宋代文学",
+    chapterTitle: "第四章 杜甫",
+    topic: "杜甫诗歌的艺术性",
+    order: 3,
+  },
+  "ancient-prose": {
+    subjectId: "ancient",
+    partTitle: "第二编 唐五代、宋代文学",
+    chapterTitle: "第七章 古文运动与韩柳散文",
+    topic: "古文运动",
+    order: 1,
+  },
+  "su-shi": {
+    subjectId: "ancient",
+    partTitle: "第二编 唐五代、宋代文学",
+    chapterTitle: "第十一章 苏轼",
+    topic: "苏轼的诗和词",
+    order: 3,
+  },
+  hongloumeng: {
+    subjectId: "ancient",
+    partTitle: "第三编 元明清文学",
+    chapterTitle: "第九章 《红楼梦》",
+    topic: "《红楼梦》的艺术成就",
+    order: 2,
+  },
+  "literary-revolution": {
+    subjectId: "modern",
+    partTitle: "第一编 第一个十年（1917—1927）",
+    chapterTitle: "第一章 文学思潮与运动（一）",
+    topic: "文学革命的发生与发展过程",
+    order: 1,
+  },
+  "nahan-panghuang": {
+    subjectId: "modern",
+    partTitle: "第一编 第一个十年（1917—1927）",
+    chapterTitle: "第二章 鲁迅（一）",
+    topic: "小说集《呐喊》与《彷徨》",
+    order: 1,
+  },
+  nvshen: {
+    subjectId: "modern",
+    partTitle: "第一编 第一个十年（1917—1927）",
+    chapterTitle: "第五章 郭沫若",
+    topic: "诗集《女神》",
+    order: 1,
+  },
+  "laoshe-jingwei": {
+    subjectId: "modern",
+    partTitle: "第二编 第二个十年（1928—1937年6月）",
+    chapterTitle: "第十一章 老舍",
+    topic: "老舍小说中的“京味”",
+    order: 3,
+  },
+  shencongwen: {
+    subjectId: "modern",
+    partTitle: "第二编 第二个十年（1928—1937年6月）",
+    chapterTitle: "第十三章 沈从文",
+    topic: "沈从文的湘西小说与都市小说",
+    order: 1,
+  },
+  caoyu: {
+    subjectId: "modern",
+    partTitle: "第二编 第二个十年（1928—1937年6月）",
+    chapterTitle: "第十九章 曹禺",
+    topic: "曹禺的四大名剧：《雷雨》《日出》《原野》《北京人》",
+    order: 1,
+  },
+  aiqing: {
+    subjectId: "modern",
+    partTitle: "第三编 第三个十年（1937年7月—1949年9月）",
+    chapterTitle: "第二十五章 艾青",
+    topic: "艾青诗歌的两大意象",
+    order: 1,
+  },
+};
+
+function normalizeCardText(value: string) {
+  return value.replace(/[《》“”（）()、·：:，,\s]/g, "").toLowerCase();
+}
+
+function inferQuestionType(topic: string): MemorizationCard["type"] {
+  if (/思想内容与艺术|艺术成就|文学理想|比较|意义|特质/.test(topic)) {
+    return "论述题";
+  }
+  if (/运动|诗派|小说派|名称|体|左联|京派|海派/.test(topic)) {
+    return "名词解释";
+  }
+  return "简答题";
+}
+
+function createFrameworkCard(
+  subjectId: "ancient" | "modern",
+  partTitle: string,
+  chapterTitle: string,
+  topic: string,
+  chapterIndex: number,
+  topicIndex: number,
+): MemorizationCard {
+  const type = inferQuestionType(topic);
+  const isEssay = type === "论述题";
+  const studyContent = buildFrameworkStudyCard(
+    subjectId,
+    partTitle,
+    chapterTitle,
+    topic,
+    type,
+  );
+  return {
+    id: `framework-${subjectId}-${chapterIndex}-${topicIndex}`,
+    area: subjectId === "ancient" ? "古代文学" : "现代文学",
+    subjectId,
+    partTitle,
+    chapterTitle,
+    topic,
+    order: topicIndex + 1,
+    title: topic,
+    type,
+    ...studyContent,
+    question:
+      type === "名词解释"
+        ? `名词解释：${topic}。`
+        : `${isEssay ? "结合代表作品，论述" : "结合代表材料，简述"}${topic}。`,
+  };
+}
+
+const placedCuratedCards = memorizationCards.map((card) => {
+  const placement = legacyCardPlacements[card.id];
+  if (!placement || card.id.startsWith("shijing-")) {
+    return {
+      ...placement,
+      ...card,
+    };
+  }
+  const enriched = buildFrameworkStudyCard(
+    placement.subjectId,
+    placement.partTitle,
+    placement.chapterTitle,
+    placement.topic,
+    card.type,
+  );
+  return {
+    ...placement,
+    ...card,
+    ...enriched,
+    title: card.title,
+    question: card.question,
+  };
+});
+
+const chapterCardGroups = syllabus.flatMap((subject) =>
+  subject.parts.flatMap((part, partIndex) =>
+    part.chapters.map((chapter, chapterIndex) => {
+      const curated = placedCuratedCards
+        .filter(
+          (card) =>
+            card.subjectId === subject.id &&
+            card.partTitle === part.title &&
+            card.chapterTitle === chapter.title,
+        )
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      const generated = chapter.topics
+        .map((topic, topicIndex) => {
+          const normalizedTopic = normalizeCardText(topic);
+          const alreadyCovered = curated.some((card) => {
+            const normalizedCardTopic = normalizeCardText(card.topic ?? card.title);
+            return (
+              normalizedCardTopic.includes(normalizedTopic) ||
+              normalizedTopic.includes(normalizedCardTopic)
+            );
+          });
+          return alreadyCovered
+            ? null
+            : createFrameworkCard(
+                subject.id,
+                part.title,
+                chapter.title,
+                topic,
+                partIndex * 100 + chapterIndex,
+                topicIndex,
+              );
+        })
+        .filter((card): card is MemorizationCard => card !== null);
+
+      const cards = [...curated, ...generated].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0),
+      );
+      return {
+        key: `${subject.id}|${part.title}|${chapter.title}`,
+        subjectId: subject.id,
+        subjectTitle: subject.title,
+        partTitle: part.title,
+        chapterTitle: chapter.title,
+        cards,
+      };
+    }),
+  ),
+);
+
+const allStudyCards = chapterCardGroups.flatMap((group) => group.cards);
+
 export default function Home() {
   const [theme, setTheme] = useState<Theme>("academy");
   const [view, setView] = useState<View>("overview");
   const [subjectId, setSubjectId] = useState<"ancient" | "modern">("ancient");
   const [search, setSearch] = useState("");
   const [completed, setCompleted] = useState<Set<string>>(new Set());
-  const [selectedCardId, setSelectedCardId] = useState(memorizationCards[0].id);
+  const [selectedChapterKey, setSelectedChapterKey] = useState(
+    chapterCardGroups[0].key,
+  );
+  const [selectedCardId, setSelectedCardId] = useState(
+    chapterCardGroups[0].cards[0].id,
+  );
+  const [answerMode, setAnswerMode] = useState<AnswerMode>("standard");
   const [clozeHidden, setClozeHidden] = useState(true);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [practiceIndex, setPracticeIndex] = useState(0);
@@ -172,9 +417,38 @@ export default function Home() {
   }, [mockRunning, mockSeconds]);
 
   const selectedSubject = syllabus.find((item) => item.id === subjectId)!;
+  const selectedChapterGroup =
+    chapterCardGroups.find((group) => group.key === selectedChapterKey) ??
+    chapterCardGroups[0];
   const selectedCard =
-    memorizationCards.find((item) => item.id === selectedCardId) ??
-    memorizationCards[0];
+    allStudyCards.find((item) => item.id === selectedCardId) ??
+    selectedChapterGroup.cards[0];
+  const selectedCardIndex = selectedChapterGroup.cards.findIndex(
+    (card) => card.id === selectedCard.id,
+  );
+  const outlineAnswer =
+    selectedCard.outlineAnswer ??
+    selectedCard.points
+      .map((point, index) => `${index + 1}. ${point}`)
+      .join("\n");
+  const highScoreAnswer =
+    selectedCard.highScoreAnswer ??
+    `${selectedCard.answer}\n\n【高分加写】答题时从“${
+      selectedCard.examples?.join("、") || selectedCard.title
+    }”中选择两至三处材料，分别嵌入对应分论点，补出“文本现象—表达作用—文学史意义”的证据链；结尾再加入一处同类作家或作品的简短比较。`;
+  const activeAnswer =
+    answerMode === "outline"
+      ? outlineAnswer
+      : answerMode === "high"
+        ? highScoreAnswer
+        : selectedCard.answer;
+  const activeCard = {
+    ...selectedCard,
+    answer: activeAnswer,
+    keywords: selectedCard.keywords.filter((keyword) =>
+      activeAnswer.includes(keyword),
+    ),
+  };
   const practice = practiceQuestions[practiceIndex];
   const progress = Math.round((completed.size / totalTopicCount) * 100);
 
@@ -210,8 +484,24 @@ export default function Home() {
 
   function chooseCard(id: string) {
     setSelectedCardId(id);
+    setAnswerMode("standard");
     setClozeHidden(true);
     setRevealed(new Set());
+  }
+
+  function openChapterCards(chapterKey: string, preferredCardId?: string) {
+    const group =
+      chapterCardGroups.find((item) => item.key === chapterKey) ??
+      chapterCardGroups[0];
+    setSelectedChapterKey(group.key);
+    chooseCard(preferredCardId ?? group.cards[0].id);
+    setView("cards");
+  }
+
+  function moveCard(direction: -1 | 1) {
+    const nextIndex = selectedCardIndex + direction;
+    const next = selectedChapterGroup.cards[nextIndex];
+    if (next) chooseCard(next.id);
   }
 
   function revealKeyword(keyword: string) {
@@ -344,8 +634,8 @@ export default function Home() {
                   <span>今日任务</span>
                 </div>
                 <div>
-                  <strong>{memorizationCards.length}</strong>
-                  <span>精编背诵卡</span>
+                  <strong>{allStudyCards.length}</strong>
+                  <span>章节知识卡</span>
                 </div>
                 <div>
                   <strong>180</strong>
@@ -389,13 +679,13 @@ export default function Home() {
               <div className="section-header">
                 <div>
                   <p className="section-kicker">今日背诵卡</p>
-                  <h3>{memorizationCards[0].title}</h3>
+                  <h3>{allStudyCards[0].title}</h3>
                 </div>
                 <span className="score-stamp">10分</span>
               </div>
-              <p className="featured-question">{memorizationCards[0].question}</p>
+              <p className="featured-question">{allStudyCards[0].question}</p>
               <div className="keyword-preview">
-                {memorizationCards[0].keywords.slice(0, 4).map((keyword) => (
+                {allStudyCards[0].keywords.slice(0, 4).map((keyword) => (
                   <span key={keyword}>{keyword}</span>
                 ))}
               </div>
@@ -502,6 +792,10 @@ export default function Home() {
                   <div className="chapter-grid">
                     {part.chapters.map((chapter) => {
                       const chapterId = `${subjectId}-${part.title}-${chapter.title}`;
+                      const chapterGroupKey = `${subjectId}|${part.title}|${chapter.title}`;
+                      const chapterGroup = chapterCardGroups.find(
+                        (group) => group.key === chapterGroupKey,
+                      )!;
                       const isExpanded =
                         expandedChapters.has(chapterId) || search.trim().length > 0;
                       return (
@@ -511,24 +805,39 @@ export default function Home() {
                         >
                           <button
                             className="chapter-toggle"
-                            onClick={() => toggleChapter(chapterId)}
-                            aria-expanded={isExpanded}
+                            onClick={() => openChapterCards(chapterGroupKey)}
                           >
                             <span>{chapter.title}</span>
                             <small>
-                              {isExpanded ? "收起" : `展开 ${chapter.topics.length} 个知识点`}
-                              <i aria-hidden="true">⌄</i>
+                              进入本章 · {chapterGroup.cards.length}张卡
+                              <i aria-hidden="true">→</i>
                             </small>
+                          </button>
+                          <button
+                            className="chapter-expand-button"
+                            onClick={() => toggleChapter(chapterId)}
+                            aria-expanded={isExpanded}
+                          >
+                            {isExpanded
+                              ? "收起知识点"
+                              : `查看 ${chapter.topics.length} 个大纲知识点`}
+                            <i aria-hidden="true">⌄</i>
                           </button>
                           {isExpanded && (
                             <div className="topic-list">
                               {chapter.topics.map((topic) => {
                                 const id = `${subjectId}-${part.title}-${chapter.title}-${topic}`;
-                                const relatedCard = memorizationCards.find(
-                                  (card) =>
-                                    card.title.includes(topic.replace(/[《》“”]/g, "")) ||
-                                    topic.includes(card.title.replace(/[《》“”]/g, "")),
-                                );
+                                const normalizedTopic = normalizeCardText(topic);
+                                const relatedCard =
+                                  chapterGroup.cards.find((card) => {
+                                    const normalizedCardTopic = normalizeCardText(
+                                      card.topic ?? card.title,
+                                    );
+                                    return (
+                                      normalizedCardTopic.includes(normalizedTopic) ||
+                                      normalizedTopic.includes(normalizedCardTopic)
+                                    );
+                                  }) ?? chapterGroup.cards[0];
                                 return (
                                   <div
                                     className={
@@ -547,17 +856,17 @@ export default function Home() {
                                     <div className="topic-content">
                                       <strong>{topic}</strong>
                                       <p>{getTopicSummary(topic, chapter.title)}</p>
-                                      {relatedCard && (
-                                        <button
-                                          className="topic-card-link"
-                                          onClick={() => {
-                                            chooseCard(relatedCard.id);
-                                            setView("cards");
-                                          }}
-                                        >
-                                          完整背诵卡 · 可挖空 →
-                                        </button>
-                                      )}
+                                      <button
+                                        className="topic-card-link"
+                                        onClick={() =>
+                                          openChapterCards(
+                                            chapterGroupKey,
+                                            relatedCard.id,
+                                          )
+                                        }
+                                      >
+                                        查看本知识卡 · 可挖空 →
+                                      </button>
                                     </div>
                                     <em>
                                       {completed.has(id) ? "已掌握" : "待学习"}
@@ -582,26 +891,41 @@ export default function Home() {
             <aside className="card-library">
               <div className="section-header">
                 <div>
-                  <p className="section-kicker">精编答案库</p>
-                  <h3>{memorizationCards.length}张可背卡</h3>
+                  <p className="section-kicker">按教材章节连续背诵</p>
+                  <h3>{selectedChapterGroup.chapterTitle}</h3>
                 </div>
               </div>
+              <label className="chapter-select">
+                <span>切换章节</span>
+                <select
+                  value={selectedChapterGroup.key}
+                  onChange={(event) => openChapterCards(event.target.value)}
+                >
+                  {chapterCardGroups.map((group) => (
+                    <option key={group.key} value={group.key}>
+                      {group.subjectTitle} · {group.chapterTitle}（{group.cards.length}张）
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="card-filter-row">
-                <span>古代 {memorizationCards.filter((card) => card.area === "古代文学").length}</span>
-                <span>现代 {memorizationCards.filter((card) => card.area === "现代文学").length}</span>
+                <span>{selectedChapterGroup.subjectTitle}</span>
+                <span>{selectedChapterGroup.cards.length}张顺序卡</span>
               </div>
+              <p className="chapter-part-label">{selectedChapterGroup.partTitle}</p>
               <div className="card-list">
-                {memorizationCards.map((card) => (
+                {selectedChapterGroup.cards.map((card, index) => (
                   <button
                     key={card.id}
                     className={selectedCard.id === card.id ? "card-list-item active" : "card-list-item"}
                     onClick={() => chooseCard(card.id)}
                   >
-                    <span>{card.area === "古代文学" ? "古" : "现"}</span>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
                     <div>
                       <strong>{card.title}</strong>
                       <small>
-                        {card.type} · {card.points.length}个评分点
+                        {card.type} · {card.points.length}个评分点 · 约
+                        {card.estimatedWords ?? "—"}字
                       </small>
                     </div>
                   </button>
@@ -613,7 +937,8 @@ export default function Home() {
               <div className="memorize-heading">
                 <div>
                   <p className="section-kicker">
-                    {selectedCard.area} · {selectedCard.type}
+                    {selectedChapterGroup.chapterTitle} · 第
+                    {selectedCardIndex + 1}/{selectedChapterGroup.cards.length}张
                   </p>
                   <h3>{selectedCard.title}</h3>
                 </div>
@@ -639,24 +964,73 @@ export default function Home() {
               <div className="question-paper">
                 <span className="paper-label">题目</span>
                 <h4>{selectedCard.question}</h4>
+                <div className="answer-metrics">
+                  <span>{selectedCard.score ?? 10}分</span>
+                  <span>约{selectedCard.estimatedWords ?? "—"}字</span>
+                  <span>建议{selectedCard.writingMinutes ?? "—"}分钟</span>
+                  <span>{selectedCard.points.length}个分论点</span>
+                </div>
+              </div>
+
+              <div className="answer-mode-switch" role="group" aria-label="答案版本">
+                {[
+                  { id: "outline", label: "提纲版", note: "先记分点" },
+                  { id: "standard", label: "标准版", note: "可直接背" },
+                  { id: "high", label: "高分版", note: "加比较与评价" },
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    className={answerMode === mode.id ? "active" : ""}
+                    onClick={() => {
+                      setAnswerMode(mode.id as AnswerMode);
+                      setClozeHidden(mode.id !== "outline");
+                      setRevealed(new Set());
+                    }}
+                  >
+                    <strong>{mode.label}</strong>
+                    <span>{mode.note}</span>
+                  </button>
+                ))}
               </div>
 
               <article className="answer-paper">
                 <div className="answer-instruction">
-                  <span className="paper-label">可直接背诵</span>
+                  <span className="paper-label">
+                    {answerMode === "outline"
+                      ? "评分提纲"
+                      : answerMode === "high"
+                        ? "高分扩展"
+                        : "可直接背诵"}
+                  </span>
                   <p>
-                    {clozeHidden
-                      ? "点击横线逐个显现；恢复后的关键词会标红加粗。"
-                      : "答案已完整显示，关键词已标红加粗。"}
+                    {answerMode === "outline"
+                      ? "先按顺序复述分论点，再切换标准版补充解释和例证。"
+                      : clozeHidden
+                        ? "点击横线逐个显现；恢复后的关键词会标红加粗。"
+                        : "答案已完整显示，关键词已标红加粗。"}
                   </p>
                 </div>
                 <ClozeAnswer
-                  card={selectedCard}
+                  card={activeCard}
                   hidden={clozeHidden}
                   revealed={revealed}
                   onReveal={revealKeyword}
                 />
               </article>
+
+              {selectedCard.examples && selectedCard.examples.length > 0 && (
+                <section className="example-bank">
+                  <div>
+                    <p className="section-kicker">作品例证</p>
+                    <h4>每个分论点都要落到具体材料</h4>
+                  </div>
+                  <div className="example-list">
+                    {selectedCard.examples.map((example) => (
+                      <span key={example}>{example}</span>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               <section className="scoring-points">
                 <div className="section-header">
@@ -674,6 +1048,28 @@ export default function Home() {
                   ))}
                 </div>
               </section>
+
+              <nav className="card-sequence-nav" aria-label="章节卡片顺序">
+                <button
+                  className="secondary-button"
+                  onClick={() => moveCard(-1)}
+                  disabled={selectedCardIndex <= 0}
+                >
+                  ← 上一张
+                </button>
+                <span>
+                  本章 {selectedCardIndex + 1} / {selectedChapterGroup.cards.length}
+                </span>
+                <button
+                  className="primary-button"
+                  onClick={() => moveCard(1)}
+                  disabled={
+                    selectedCardIndex >= selectedChapterGroup.cards.length - 1
+                  }
+                >
+                  下一张 →
+                </button>
+              </nav>
             </section>
           </div>
         )}

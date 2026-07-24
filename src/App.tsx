@@ -11,13 +11,17 @@ import {
 import { buildFrameworkStudyCard } from "./study-profiles";
 
 type Theme = "academy" | "sprint" | "calm";
-type View = "overview" | "outline" | "cards" | "practice" | "mock";
+type View = "overview" | "outline" | "cards" | "bank" | "practice" | "mock";
 type AnswerMode = "outline" | "standard" | "high";
+type BankSource = "all" | "past" | "chapter" | "practice" | "mock";
+type BankType = "all" | "名词解释" | "简答题" | "论述题" | "写作题";
+type BankSubject = "all" | "ancient" | "modern" | "comprehensive";
 
 const views: { id: View; label: string; mark: string }[] = [
   { id: "overview", label: "今日总览", mark: "今" },
   { id: "outline", label: "知识框架", mark: "纲" },
   { id: "cards", label: "挖空背诵", mark: "背" },
+  { id: "bank", label: "全部题库", mark: "题" },
   { id: "practice", label: "专项训练", mark: "练" },
   { id: "mock", label: "模拟考试", mark: "考" },
 ];
@@ -26,6 +30,44 @@ const themes: { id: Theme; label: string; dot: string }[] = [
   { id: "academy", label: "东方书院", dot: "朱" },
   { id: "sprint", label: "冲刺仪表盘", dot: "冲" },
   { id: "calm", label: "安静陪伴", dot: "静" },
+];
+
+const mockExamSections = [
+  {
+    type: "名词解释" as const,
+    title: "一、名词解释（4×5分，共20分）",
+    score: 5,
+    items: ["建安风骨", "花间派", "问题小说", "九叶诗派"],
+  },
+  {
+    type: "简答题" as const,
+    title: "二、简答题（4×10分，共40分）",
+    score: 10,
+    items: [
+      "简述《史记》人物传记的文学价值。",
+      "简述辛词的艺术成就。",
+      "简述老舍小说“京味”的构成。",
+      "简述艾青诗歌的土地与太阳意象。",
+    ],
+  },
+  {
+    type: "论述题" as const,
+    title: "三、论述题（2×15分，共30分）",
+    score: 15,
+    items: [
+      "论述李白诗歌的主要艺术成就，并结合具体作品说明。",
+      "结合《呐喊》《彷徨》论述鲁迅小说的启蒙主题与形式创造。",
+    ],
+  },
+  {
+    type: "写作题" as const,
+    title: "四、写作题（2×30分，共60分）",
+    score: 30,
+    items: [
+      "围绕“传统与现代的冲突”，写一篇不少于800字的文学评论。",
+      "以“文学如何保存一个时代的情感经验”为题，写一篇不少于800字的文章。",
+    ],
+  },
 ];
 
 function escapeRegExp(value: string) {
@@ -346,6 +388,86 @@ const chapterCardGroups = syllabus.flatMap((subject) =>
 
 const allStudyCards = chapterCardGroups.flatMap((group) => group.cards);
 
+type QuestionBankItem = {
+  id: string;
+  source: Exclude<BankSource, "all" | "past">;
+  sourceLabel: string;
+  subject: Exclude<BankSubject, "all">;
+  type: Exclude<BankType, "all">;
+  prompt: string;
+  score: number;
+  chapterTitle?: string;
+  partTitle?: string;
+  answer?: string;
+  points?: string[];
+  chapterKey?: string;
+  cardId?: string;
+  practiceIndex?: number;
+};
+
+const chapterQuestionBank: QuestionBankItem[] = chapterCardGroups.flatMap(
+  (group) =>
+    group.cards.map((card) => ({
+      id: `bank-card-${card.id}`,
+      source: "chapter",
+      sourceLabel: "教材章节题",
+      subject: group.subjectId,
+      type: card.type,
+      prompt: card.question,
+      score: card.score ?? (card.type === "论述题" ? 15 : card.type === "名词解释" ? 5 : 10),
+      chapterTitle: group.chapterTitle,
+      partTitle: group.partTitle,
+      answer: card.answer,
+      points: card.points,
+      chapterKey: group.key,
+      cardId: card.id,
+    })),
+);
+
+const practiceQuestionBank: QuestionBankItem[] = practiceQuestions.map(
+  (question, index) => ({
+    id: `bank-practice-${question.id}`,
+    source: "practice",
+    sourceLabel: "专项训练",
+    subject: "comprehensive",
+    type: question.type,
+    prompt: question.prompt,
+    score: question.score,
+    points: question.points,
+    practiceIndex: index,
+  }),
+);
+
+const mockQuestionBank: QuestionBankItem[] = mockExamSections.flatMap(
+  (section, sectionIndex) =>
+    section.items.map((prompt, itemIndex) => ({
+      id: `bank-mock-${sectionIndex}-${itemIndex}`,
+      source: "mock",
+      sourceLabel: "模拟卷（一）",
+      subject: "comprehensive",
+      type: section.type,
+      prompt,
+      score: section.score,
+    })),
+);
+
+const completeQuestionBank = [
+  ...chapterQuestionBank,
+  ...practiceQuestionBank,
+  ...mockQuestionBank,
+];
+
+const verifiedPastPaperRecords = [
+  {
+    year: "2016",
+    title: "2016年湖北师范大学812文学综合考研真题",
+    status: "已核到原卷档案，题面待核",
+    source: "第三方真题档案",
+    url: "https://www.kaoyany.top/tags-2590.html",
+    note: "公开检索页能够确认该原卷档案存在，但完整题面需会员查看。为避免把模拟题冒充真题，本版暂不转写未核对题目。",
+  },
+];
+
 const dailyChapterPool = (() => {
   const ancient = chapterCardGroups.filter((group) => group.subjectId === "ancient");
   const modern = chapterCardGroups.filter((group) => group.subjectId === "modern");
@@ -415,6 +537,13 @@ export default function Home() {
   const [hiddenDailyTaskIds, setHiddenDailyTaskIds] = useState<string[]>([]);
   const [newDailyTask, setNewDailyTask] = useState("");
   const [dailyReady, setDailyReady] = useState(false);
+  const [bankSource, setBankSource] = useState<BankSource>("all");
+  const [bankType, setBankType] = useState<BankType>("all");
+  const [bankSubject, setBankSubject] = useState<BankSubject>("all");
+  const [bankSearch, setBankSearch] = useState("");
+  const [expandedBankItemId, setExpandedBankItemId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("hs812-theme") as Theme | null;
@@ -625,6 +754,30 @@ export default function Home() {
       }))
       .filter((part) => part.chapters.length > 0);
   }, [search, selectedSubject]);
+
+  const filteredQuestionBank = useMemo(() => {
+    const keyword = bankSearch.trim().toLowerCase();
+    return completeQuestionBank.filter((item) => {
+      if (bankSource !== "all" && item.source !== bankSource) return false;
+      if (bankType !== "all" && item.type !== bankType) return false;
+      if (bankSubject !== "all" && item.subject !== bankSubject) return false;
+      if (
+        keyword &&
+        ![
+          item.prompt,
+          item.chapterTitle,
+          item.partTitle,
+          item.sourceLabel,
+          item.type,
+        ]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(keyword))
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [bankSearch, bankSource, bankSubject, bankType]);
 
   function toggleComplete(id: string) {
     setCompleted((current) => {
@@ -1354,6 +1507,281 @@ export default function Home() {
           </div>
         )}
 
+        {view === "bank" && (
+          <div className="page-content bank-layout">
+            <section className="bank-hero">
+              <div>
+                <p className="section-kicker">真题档案 + 全章节训练</p>
+                <h3>812文学综合全部题库</h3>
+                <p>
+                  一页查看教材章节题、专项训练和整卷模拟。真题只收录能核对来源的原卷，
+                  未核实题面不会用模拟题冒充。
+                </p>
+              </div>
+              <div className="bank-stat-grid">
+                <button onClick={() => setBankSource("past")}>
+                  <strong>{verifiedPastPaperRecords.length}</strong>
+                  <span>套真题档案</span>
+                </button>
+                <button onClick={() => setBankSource("chapter")}>
+                  <strong>{chapterQuestionBank.length}</strong>
+                  <span>道章节题</span>
+                </button>
+                <button onClick={() => setBankSource("practice")}>
+                  <strong>{practiceQuestionBank.length}</strong>
+                  <span>道专项题</span>
+                </button>
+                <button onClick={() => setBankSource("mock")}>
+                  <strong>{mockQuestionBank.length}</strong>
+                  <span>道模拟题</span>
+                </button>
+              </div>
+            </section>
+
+            <section className="bank-source-note">
+              <div>
+                <span className="verified-dot">已核</span>
+                <div>
+                  <strong>官方题型结构</strong>
+                  <p>
+                    150分、180分钟：名词解释4题、简答4题、论述2题、写作2题。
+                  </p>
+                </div>
+              </div>
+              <div className="bank-source-links">
+                <a
+                  href="https://grad.hbnu.edu.cn/_upload/article/files/66/9f/bd17e5af403696eec61158738a78/d21181c7-40a1-49e6-bb44-a780336ac94c.pdf"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  查看官方考试大纲
+                </a>
+                <a
+                  href="https://grad.hbnu.edu.cn/2025/0322/c1082a175203/page.htm"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  查看学校招生页面
+                </a>
+              </div>
+            </section>
+
+            <section className="bank-toolbar">
+              <label className="bank-search">
+                <span>检索</span>
+                <input
+                  value={bankSearch}
+                  onChange={(event) => setBankSearch(event.target.value)}
+                  placeholder="搜索作家、作品、流派、章节或题目"
+                />
+              </label>
+              <div className="bank-filter-group">
+                <span>来源</span>
+                <div>
+                  {[
+                    ["all", "全部"],
+                    ["past", "湖师真题"],
+                    ["chapter", "教材章节题"],
+                    ["practice", "专项训练"],
+                    ["mock", "模拟题"],
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      className={bankSource === id ? "active" : ""}
+                      onClick={() => setBankSource(id as BankSource)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="bank-filter-group">
+                <span>题型</span>
+                <div>
+                  {["all", "名词解释", "简答题", "论述题", "写作题"].map(
+                    (type) => (
+                      <button
+                        key={type}
+                        className={bankType === type ? "active" : ""}
+                        onClick={() => setBankType(type as BankType)}
+                      >
+                        {type === "all" ? "全部题型" : type}
+                      </button>
+                    ),
+                  )}
+                </div>
+              </div>
+              <div className="bank-filter-group">
+                <span>范围</span>
+                <div>
+                  {[
+                    ["all", "全部范围"],
+                    ["ancient", "中国古代文学"],
+                    ["modern", "中国现代文学"],
+                    ["comprehensive", "综合与写作"],
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      className={bankSubject === id ? "active" : ""}
+                      onClick={() => setBankSubject(id as BankSubject)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {(bankSource === "all" || bankSource === "past") && (
+              <section className="past-paper-panel">
+                <div className="section-header">
+                  <div>
+                    <p className="section-kicker">湖师真题原卷档案</p>
+                    <h3>已核来源，不编题面</h3>
+                  </div>
+                  <span className="soft-pill">
+                    {verifiedPastPaperRecords.length}套
+                  </span>
+                </div>
+                {verifiedPastPaperRecords.map((paper) => (
+                  <article className="past-paper-card" key={paper.year}>
+                    <div className="past-year">{paper.year}</div>
+                    <div>
+                      <div className="past-paper-meta">
+                        <span>湖师812真题</span>
+                        <em>{paper.status}</em>
+                      </div>
+                      <h4>{paper.title}</h4>
+                      <p>{paper.note}</p>
+                      <small>来源：{paper.source}</small>
+                    </div>
+                    <a href={paper.url} target="_blank" rel="noreferrer">
+                      核对原卷档案
+                    </a>
+                  </article>
+                ))}
+                <p className="past-paper-tip">
+                  客户如有购买的原卷、截图或回忆版，请发给我；核对后会按年份、题型逐题录入，
+                  并给每题补上对应教材章节和详细答案。
+                </p>
+              </section>
+            )}
+
+            {bankSource !== "past" && (
+              <section className="bank-results">
+                <div className="section-header">
+                  <div>
+                    <p className="section-kicker">可直接练习</p>
+                    <h3>当前筛选共 {filteredQuestionBank.length} 道</h3>
+                  </div>
+                  <button
+                    className="secondary-button"
+                    onClick={() => {
+                      setBankSearch("");
+                      setBankSource("all");
+                      setBankType("all");
+                      setBankSubject("all");
+                    }}
+                  >
+                    清除筛选
+                  </button>
+                </div>
+                <div className="bank-question-list">
+                  {filteredQuestionBank.map((item, index) => {
+                    const expanded = expandedBankItemId === item.id;
+                    return (
+                      <article className="bank-question-card" key={item.id}>
+                        <div className="bank-question-number">
+                          {String(index + 1).padStart(3, "0")}
+                        </div>
+                        <div className="bank-question-main">
+                          <div className="bank-question-tags">
+                            <span>{item.sourceLabel}</span>
+                            <span>{item.type}</span>
+                            <span>{item.score}分</span>
+                            {item.subject !== "comprehensive" && (
+                              <span>
+                                {item.subject === "ancient"
+                                  ? "中国古代文学"
+                                  : "中国现代文学"}
+                              </span>
+                            )}
+                          </div>
+                          <h4>{item.prompt}</h4>
+                          {item.chapterTitle && (
+                            <p className="bank-question-location">
+                              {item.chapterTitle}
+                              {item.partTitle ? ` · ${item.partTitle}` : ""}
+                            </p>
+                          )}
+                          {expanded && (
+                            <div className="bank-answer-preview">
+                              {item.answer && <p>{item.answer}</p>}
+                              {item.points && item.points.length > 0 && (
+                                <ol>
+                                  {item.points.map((point) => (
+                                    <li key={point}>{point}</li>
+                                  ))}
+                                </ol>
+                              )}
+                              {!item.answer && !item.points && (
+                                <p>本题请进入模拟卷，在180分钟计时下独立完成。</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="bank-question-actions">
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              setExpandedBankItemId(expanded ? null : item.id)
+                            }
+                          >
+                            {expanded ? "收起" : "看答案"}
+                          </button>
+                          {item.source === "chapter" && (
+                            <button
+                              className="primary-button"
+                              onClick={() =>
+                                openChapterCards(item.chapterKey!, item.cardId)
+                              }
+                            >
+                              进入背诵卡
+                            </button>
+                          )}
+                          {item.source === "practice" && (
+                            <button
+                              className="primary-button"
+                              onClick={() => {
+                                setPracticeIndex(item.practiceIndex ?? 0);
+                                setShowPoints(false);
+                                setView("practice");
+                              }}
+                            >
+                              去作答
+                            </button>
+                          )}
+                          {item.source === "mock" && (
+                            <button
+                              className="primary-button"
+                              onClick={() => setView("mock")}
+                            >
+                              去模拟卷
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {filteredQuestionBank.length === 0 && (
+                  <p className="empty-state">没有符合当前筛选条件的题目。</p>
+                )}
+              </section>
+            )}
+          </div>
+        )}
+
         {view === "practice" && (
           <div className="page-content practice-layout">
             <section className="question-rail">
@@ -1466,35 +1894,7 @@ export default function Home() {
             </section>
 
             <section className="mock-paper">
-              {[
-                {
-                  title: "一、名词解释（4×5分，共20分）",
-                  items: ["建安风骨", "花间派", "问题小说", "九叶诗派"],
-                },
-                {
-                  title: "二、简答题（4×10分，共40分）",
-                  items: [
-                    "简述《史记》人物传记的文学价值。",
-                    "简述辛词的艺术成就。",
-                    "简述老舍小说“京味”的构成。",
-                    "简述艾青诗歌的土地与太阳意象。",
-                  ],
-                },
-                {
-                  title: "三、论述题（2×15分，共30分）",
-                  items: [
-                    "论述李白诗歌的主要艺术成就，并结合具体作品说明。",
-                    "结合《呐喊》《彷徨》论述鲁迅小说的启蒙主题与形式创造。",
-                  ],
-                },
-                {
-                  title: "四、写作题（2×30分，共60分）",
-                  items: [
-                    "围绕“传统与现代的冲突”，写一篇不少于800字的文学评论。",
-                    "以“文学如何保存一个时代的情感经验”为题，写一篇不少于800字的文章。",
-                  ],
-                },
-              ].map((section) => (
+              {mockExamSections.map((section) => (
                 <div className="mock-section" key={section.title}>
                   <h4>{section.title}</h4>
                   <ol>

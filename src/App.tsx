@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   memorizationCards,
   practiceQuestions,
@@ -346,6 +346,46 @@ const chapterCardGroups = syllabus.flatMap((subject) =>
 
 const allStudyCards = chapterCardGroups.flatMap((group) => group.cards);
 
+const dailyChapterPool = (() => {
+  const ancient = chapterCardGroups.filter((group) => group.subjectId === "ancient");
+  const modern = chapterCardGroups.filter((group) => group.subjectId === "modern");
+  return Array.from({ length: Math.max(ancient.length, modern.length) }).flatMap(
+    (_, index) =>
+      [ancient[index], modern[index]].filter(
+        (group): group is (typeof chapterCardGroups)[number] => Boolean(group),
+      ),
+  );
+})();
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getDayOrdinal(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+}
+
+function formatDailyDate(dateKey: string) {
+  const [, month, day] = dateKey.split("-").map(Number);
+  return `${month}月${day}日`;
+}
+
+function buildDailyPlan(dateKey: string) {
+  const ordinal = getDayOrdinal(dateKey);
+  const group = dailyChapterPool[ordinal % dailyChapterPool.length];
+  const card = group.cards[(ordinal * 7 + 3) % group.cards.length];
+  return { group, card };
+}
+
+type CustomDailyTask = {
+  id: string;
+  text: string;
+};
+
 export default function Home() {
   const [theme, setTheme] = useState<Theme>("academy");
   const [view, setView] = useState<View>("overview");
@@ -369,6 +409,12 @@ export default function Home() {
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(
     new Set(["ancient-0-0"]),
   );
+  const [todayKey, setTodayKey] = useState(() => getLocalDateKey());
+  const [dailyDone, setDailyDone] = useState<Record<string, boolean>>({});
+  const [customDailyTasks, setCustomDailyTasks] = useState<CustomDailyTask[]>([]);
+  const [hiddenDailyTaskIds, setHiddenDailyTaskIds] = useState<string[]>([]);
+  const [newDailyTask, setNewDailyTask] = useState("");
+  const [dailyReady, setDailyReady] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("hs812-theme") as Theme | null;
@@ -403,6 +449,70 @@ export default function Home() {
   }, [drafts]);
 
   useEffect(() => {
+    const refreshDate = () => setTodayKey(getLocalDateKey());
+    const timer = window.setInterval(refreshDate, 60_000);
+    window.addEventListener("focus", refreshDate);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshDate);
+    };
+  }, []);
+
+  useEffect(() => {
+    setDailyReady(false);
+    const saved = localStorage.getItem(`hs812-daily-${todayKey}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setDailyDone(
+            Object.fromEntries(
+              parsed.map((value, index) => [
+                `default-${index}`,
+                Boolean(value),
+              ]),
+            ),
+          );
+          setCustomDailyTasks([]);
+          setHiddenDailyTaskIds([]);
+        } else {
+          setDailyDone(parsed.done ?? {});
+          setCustomDailyTasks(parsed.custom ?? []);
+          setHiddenDailyTaskIds(parsed.hidden ?? []);
+        }
+      } catch {
+        setDailyDone({});
+        setCustomDailyTasks([]);
+        setHiddenDailyTaskIds([]);
+      }
+    } else {
+      setDailyDone({});
+      setCustomDailyTasks([]);
+      setHiddenDailyTaskIds([]);
+    }
+    setNewDailyTask("");
+    setDailyReady(true);
+  }, [todayKey]);
+
+  useEffect(() => {
+    if (!dailyReady) return;
+    localStorage.setItem(
+      `hs812-daily-${todayKey}`,
+      JSON.stringify({
+        done: dailyDone,
+        custom: customDailyTasks,
+        hidden: hiddenDailyTaskIds,
+      }),
+    );
+  }, [
+    customDailyTasks,
+    dailyDone,
+    dailyReady,
+    hiddenDailyTaskIds,
+    todayKey,
+  ]);
+
+  useEffect(() => {
     if (!mockRunning || mockSeconds <= 0) return;
     const timer = window.setInterval(() => {
       setMockSeconds((value) => {
@@ -417,6 +527,49 @@ export default function Home() {
   }, [mockRunning, mockSeconds]);
 
   const selectedSubject = syllabus.find((item) => item.id === subjectId)!;
+  const dailyPlan = useMemo(() => buildDailyPlan(todayKey), [todayKey]);
+  const dailyTasks = [
+    {
+      id: "default-0",
+      title: "框架定位",
+      detail: `${dailyPlan.group.subjectTitle} · ${dailyPlan.group.chapterTitle}`,
+      action: "framework" as const,
+    },
+    {
+      id: "default-1",
+      title: "挖空背诵",
+      detail: dailyPlan.card.title,
+      action: "card" as const,
+    },
+    {
+      id: "default-2",
+      title: "限时输出",
+      detail: `${dailyPlan.card.writingMinutes ?? 10}分钟完成一道${dailyPlan.card.type}`,
+      action: "card" as const,
+    },
+    ...customDailyTasks.map((task) => ({
+      id: task.id,
+      title: task.text,
+      detail: "今日自定义任务",
+      action: "custom" as const,
+    })),
+  ].filter((task) => !hiddenDailyTaskIds.includes(task.id));
+  const dailyCompletedCount = dailyTasks.filter(
+    (task) => dailyDone[task.id],
+  ).length;
+  const selectedSubjectChapterCount = selectedSubject.parts.reduce(
+    (total, part) => total + part.chapters.length,
+    0,
+  );
+  const selectedSubjectTopicCount = selectedSubject.parts.reduce(
+    (total, part) =>
+      total +
+      part.chapters.reduce(
+        (chapterTotal, chapter) => chapterTotal + chapter.topics.length,
+        0,
+      ),
+    0,
+  );
   const selectedChapterGroup =
     chapterCardGroups.find((group) => group.key === selectedChapterKey) ??
     chapterCardGroups[0];
@@ -508,6 +661,62 @@ export default function Home() {
     setRevealed((current) => new Set([...current, keyword]));
   }
 
+  function toggleDailyTask(id: string) {
+    setDailyDone((current) => ({
+      ...current,
+      [id]: !current[id],
+    }));
+  }
+
+  function addDailyTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = newDailyTask.trim();
+    if (!text) return;
+    setCustomDailyTasks((current) => [
+      ...current,
+      {
+        id: `custom-${Date.now()}-${current.length}`,
+        text: text.slice(0, 40),
+      },
+    ]);
+    setNewDailyTask("");
+  }
+
+  function removeDailyTask(id: string) {
+    if (id.startsWith("custom-")) {
+      setCustomDailyTasks((current) =>
+        current.filter((task) => task.id !== id),
+      );
+    } else {
+      setHiddenDailyTaskIds((current) =>
+        current.includes(id) ? current : [...current, id],
+      );
+    }
+    setDailyDone((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function openDailyFramework() {
+    const { group } = dailyPlan;
+    setSubjectId(group.subjectId);
+    setSearch("");
+    setExpandedChapters((current) => {
+      const next = new Set(current);
+      next.add(
+        `${group.subjectId}-${group.partTitle}-${group.chapterTitle}`,
+      );
+      return next;
+    });
+    setView("outline");
+  }
+
+  function openDailyCard() {
+    openChapterCards(dailyPlan.group.key, dailyPlan.card.id);
+  }
+
   function toggleChapter(id: string) {
     setExpandedChapters((current) => {
       const next = new Set(current);
@@ -576,7 +785,7 @@ export default function Home() {
             <span style={{ width: `${progress}%` }} />
           </div>
           <p>
-            已掌握 {completed.size} / {totalTopicCount} 个大纲知识点
+            已掌握 {completed.size} / {totalTopicCount} 个教材与考纲知识点
           </p>
         </div>
 
@@ -624,7 +833,7 @@ export default function Home() {
                 <p>
                   完整框架负责不漏考点，挖空背诵负责把“看懂”变成“能写出来”。
                 </p>
-                <button className="primary-button" onClick={() => setView("cards")}>
+                <button className="primary-button" onClick={openDailyCard}>
                   开始今日背诵
                 </button>
               </div>
@@ -647,49 +856,91 @@ export default function Home() {
             <section className="task-card">
               <div className="section-header">
                 <div>
-                  <p className="section-kicker">今日任务</p>
+                  <p className="section-kicker">
+                    {formatDailyDate(todayKey)} · 每日自动更新
+                  </p>
                   <h3>从输入到输出</h3>
                 </div>
-                <span className="soft-pill">1 / 3</span>
+                <span className="soft-pill">
+                  {dailyCompletedCount} / {dailyTasks.length}
+                </span>
               </div>
-              <label className="daily-task done">
-                <input type="checkbox" defaultChecked />
-                <span>
-                  <strong>框架定位</strong>
-                  先秦文学 · 《诗经》
-                </span>
-              </label>
-              <label className="daily-task">
-                <input type="checkbox" />
-                <span>
-                  <strong>挖空背诵</strong>
-                  《诗经》的艺术成就
-                </span>
-              </label>
-              <label className="daily-task">
-                <input type="checkbox" />
-                <span>
-                  <strong>限时输出</strong>
-                  10分钟完成一道简答
-                </span>
-              </label>
+              {dailyTasks.map((task) => (
+                <div
+                  className={dailyDone[task.id] ? "daily-task done" : "daily-task"}
+                  key={task.id}
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(dailyDone[task.id])}
+                    onChange={() => toggleDailyTask(task.id)}
+                    aria-label={`标记完成：${task.title}`}
+                  />
+                  <button
+                    className="daily-task-content"
+                    onClick={
+                      task.action === "framework"
+                        ? openDailyFramework
+                        : task.action === "card"
+                          ? openDailyCard
+                          : () => toggleDailyTask(task.id)
+                    }
+                  >
+                    <strong>{task.title}</strong>
+                    <span>{task.detail}</span>
+                  </button>
+                  {task.action !== "custom" && (
+                    <button
+                      className="daily-task-go"
+                      onClick={
+                        task.action === "framework"
+                          ? openDailyFramework
+                          : openDailyCard
+                      }
+                    >
+                      去完成
+                    </button>
+                  )}
+                  <button
+                    className="daily-task-delete"
+                    onClick={() => removeDailyTask(task.id)}
+                    aria-label={`删除任务：${task.title}`}
+                    title="删除今天的任务"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {dailyTasks.length === 0 && (
+                <p className="daily-empty">今天暂时没有任务，可以在下面添加。</p>
+              )}
+              <form className="daily-task-add" onSubmit={addDailyTask}>
+                <input
+                  value={newDailyTask}
+                  onChange={(event) => setNewDailyTask(event.target.value)}
+                  maxLength={40}
+                  placeholder="添加今天的自定义任务"
+                  aria-label="新任务内容"
+                />
+                <button type="submit">添加</button>
+              </form>
             </section>
 
             <section className="featured-card">
               <div className="section-header">
                 <div>
                   <p className="section-kicker">今日背诵卡</p>
-                  <h3>{allStudyCards[0].title}</h3>
+                  <h3>{dailyPlan.card.title}</h3>
                 </div>
-                <span className="score-stamp">10分</span>
+                <span className="score-stamp">{dailyPlan.card.score ?? 10}分</span>
               </div>
-              <p className="featured-question">{allStudyCards[0].question}</p>
+              <p className="featured-question">{dailyPlan.card.question}</p>
               <div className="keyword-preview">
-                {allStudyCards[0].keywords.slice(0, 4).map((keyword) => (
+                {dailyPlan.card.keywords.slice(0, 4).map((keyword) => (
                   <span key={keyword}>{keyword}</span>
                 ))}
               </div>
-              <button className="text-button" onClick={() => setView("cards")}>
+              <button className="text-button" onClick={openDailyCard}>
                 进入挖空模式 →
               </button>
             </section>
@@ -766,17 +1017,41 @@ export default function Home() {
             <section className="book-banner">
               <div className="book-spine">书</div>
               <div>
-                <p className="section-kicker">官方对口书目</p>
+                <p className="section-kicker">学校指定参考书</p>
                 <h3>{selectedSubject.title}</h3>
                 <p>{selectedSubject.book}</p>
+                <div className="coverage-badges">
+                  <span>{selectedSubjectChapterCount}章</span>
+                  <span>{selectedSubjectTopicCount}个章目知识点</span>
+                  {subjectId === "modern" && <strong>29章目录已完整建档</strong>}
+                </div>
+                {selectedSubject.sources && (
+                  <div className="book-source-links">
+                    {selectedSubject.sources.map((source) => (
+                      <a
+                        key={source.url}
+                        href={source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {source.label} ↗
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
 
             <section className="content-guide">
-              <span>怎么看内容</span>
-              <p>
-                点击下面任一章节即可展开知识点与复习提要；标有“完整背诵卡”的知识点可以直接进入挖空背诵。这里提供的是依据考纲整理的原创备考内容，不复制整本教材原文。
-              </p>
+              <span>内容依据</span>
+              <div>
+                <p>
+                  点击章节可直接进入本章顺序卡，也可先展开查看章目知识点。现代文学已按《中国现代文学三十年（修订本）》三编29章建立完整目录层；答案依据指定教材框架、学校考纲与代表作品重新编写，不复制教材原文。
+                </p>
+                <p className="source-disclosure">
+                  题目标签说明：“教材章目转化”表示按教材标题生成的原创训练题，不冒充湖北师范大学历年真题；学校真题只有取得可核验原卷后才会单独标注。
+                </p>
+              </div>
             </section>
 
             <section className="outline-list">
@@ -820,7 +1095,7 @@ export default function Home() {
                           >
                             {isExpanded
                               ? "收起知识点"
-                              : `查看 ${chapter.topics.length} 个大纲知识点`}
+                              : `查看 ${chapter.topics.length} 个章目知识点`}
                             <i aria-hidden="true">⌄</i>
                           </button>
                           {isExpanded && (
@@ -962,7 +1237,12 @@ export default function Home() {
               </div>
 
               <div className="question-paper">
-                <span className="paper-label">题目</span>
+                <div className="question-source-row">
+                  <span className="paper-label">题目</span>
+                  <span className="question-source-badge">
+                    教材章目转化 · 原创训练题
+                  </span>
+                </div>
                 <h4>{selectedCard.question}</h4>
                 <div className="answer-metrics">
                   <span>{selectedCard.score ?? 10}分</span>

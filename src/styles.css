@@ -540,11 +540,10 @@ button {
 
 .daily-task {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   padding: 15px 0;
   border-bottom: 1px solid var(--line);
-  cursor: pointer;
 }
 
 .daily-task:last-child {
@@ -560,12 +559,27 @@ button {
   accent-color: var(--accent);
 }
 
-.daily-task span {
+.daily-task-content {
   display: flex;
+  min-width: 0;
+  flex: 1;
   flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.daily-task-content span {
+  overflow: hidden;
+  width: 100%;
   color: var(--muted);
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .daily-task strong {
@@ -576,6 +590,79 @@ button {
 .daily-task.done strong {
   text-decoration: line-through;
   text-decoration-color: var(--accent);
+}
+
+.daily-task-go {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.daily-task-delete {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.daily-task-delete:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.daily-task-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.daily-task-add input {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: none;
+  background: var(--surface-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.daily-task-add input:focus {
+  border-color: var(--accent);
+}
+
+.daily-task-add button {
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.daily-empty {
+  margin: 18px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .score-stamp {
@@ -778,10 +865,52 @@ button {
   font-family: var(--display);
 }
 
-.book-banner p:last-child {
+.book-banner > div > p:not(.section-kicker) {
   margin: 7px 0 0;
   color: var(--muted);
   font-size: 11px;
+}
+
+.coverage-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.coverage-badges span,
+.coverage-badges strong {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.coverage-badges strong {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.book-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.book-source-links a {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.book-source-links a:hover {
+  text-decoration: underline;
 }
 
 .content-guide {
@@ -810,6 +939,11 @@ button {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.7;
+}
+
+.content-guide .source-disclosure {
+  margin-top: 6px;
+  color: var(--text);
 }
 
 .outline-list {
@@ -1148,6 +1282,23 @@ details summary::-webkit-details-marker {
   padding: 21px 24px;
   border-left: 3px solid var(--accent);
   background: var(--surface);
+}
+
+.question-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.question-source-badge {
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .paper-label {

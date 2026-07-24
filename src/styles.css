@@ -1336,11 +1336,82 @@ details summary::-webkit-details-marker {
   font-weight: 700;
 }
 
+.card-source-trace {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.28fr) minmax(0, 1fr);
+  gap: 16px;
+  margin: 0 0 16px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--paper));
+}
+
+.card-source-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-source-status > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--paper);
+  background: var(--accent);
+  font-family: var(--display);
+  font-weight: 800;
+}
+
+.card-source-status div,
+.card-source-detail {
+  display: grid;
+  gap: 4px;
+}
+
+.card-source-status strong,
+.card-source-detail strong {
+  color: var(--ink);
+}
+
+.card-source-status small,
+.card-source-detail small,
+.card-source-detail p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.card-source-detail > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 3px 0;
+}
+
+.card-source-detail > div span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--paper);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .answer-mode-switch {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin: 14px 0;
+}
+
+@media (max-width: 720px) {
+  .card-source-trace {
+    grid-template-columns: 1fr;
+  }
 }
 
 .answer-mode-switch button {

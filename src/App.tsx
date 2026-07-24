@@ -325,7 +325,7 @@ const placedCuratedCards = memorizationCards.map((card) => {
     placement.subjectId,
     placement.partTitle,
     placement.chapterTitle,
-    placement.topic,
+    placement.topic!,
     card.type,
   );
   return {
@@ -435,7 +435,7 @@ const practiceQuestionBank: QuestionBankItem[] = practiceQuestions.map(
     source: "practice",
     sourceLabel: "专项训练",
     subject: "comprehensive",
-    type: question.type,
+    type: question.type as QuestionBankItem["type"],
     prompt: question.prompt,
     score: question.score,
     points: question.points,
@@ -1416,7 +1416,9 @@ export default function Home() {
                 <div className="question-source-row">
                   <span className="paper-label">题目</span>
                   <span className="question-source-badge">
-                    教材章目转化 · 原创训练题
+                    {selectedCard.sourceStatus
+                      ? `${selectedCard.sourceStatus} · 原创训练题`
+                      : "框架版 · 待教材逐条核校"}
                   </span>
                 </div>
                 <h4>{selectedCard.question}</h4>
@@ -1427,6 +1429,33 @@ export default function Home() {
                   <span>{selectedCard.points.length}个分论点</span>
                 </div>
               </div>
+
+              {selectedCard.sourceStatus && (
+                <section className="card-source-trace" aria-label="教材出处">
+                  <div className="card-source-status">
+                    <span>据</span>
+                    <div>
+                      <strong>{selectedCard.sourceStatus}</strong>
+                      <small>不是通用模板生成</small>
+                    </div>
+                  </div>
+                  <div className="card-source-detail">
+                    <p>{selectedCard.sourceEdition}</p>
+                    <strong>{selectedCard.sourceLocation}</strong>
+                    {selectedCard.sourcePages &&
+                      selectedCard.sourcePages.length > 0 && (
+                        <div>
+                          {selectedCard.sourcePages.map((page) => (
+                            <span key={page}>{page}</span>
+                          ))}
+                        </div>
+                      )}
+                    {selectedCard.sourceNote && (
+                      <small>{selectedCard.sourceNote}</small>
+                    )}
+                  </div>
+                </section>
+              )}
 
               <div className="answer-mode-switch" role="group" aria-label="答案版本">
                 {[

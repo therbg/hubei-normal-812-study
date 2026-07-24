@@ -418,6 +418,11 @@ export type MemorizationCard = {
   examples?: string[];
   estimatedWords?: number;
   writingMinutes?: number;
+  sourceEdition?: string;
+  sourceLocation?: string;
+  sourcePages?: string[];
+  sourceStatus?: "教材正文已核" | "教材片段已核" | "多来源交叉核";
+  sourceNote?: string;
 };
 
 export const memorizationCards: MemorizationCard[] = [

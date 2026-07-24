@@ -1,4 +1,5 @@
 import type { MemorizationCard } from "./data";
+import { getSourceFaithfulStudyCard } from "./source-faithful-cards";
 
 type ChapterProfile = {
   summary: string;
@@ -480,7 +481,21 @@ export function buildFrameworkStudyCard(
   | "estimatedWords"
   | "writingMinutes"
   | "score"
+  | "sourceEdition"
+  | "sourceLocation"
+  | "sourcePages"
+  | "sourceStatus"
+  | "sourceNote"
 > {
+  const sourceFaithfulCard = getSourceFaithfulStudyCard(
+    subjectId,
+    partTitle,
+    chapterTitle,
+    topic,
+  );
+  if (sourceFaithfulCard) {
+    return sourceFaithfulCard;
+  }
   const profile = chapterProfiles[chapterTitle] ?? {
     summary: `${topic}是${chapterTitle}中的核心考点，应放回具体时代、作家创作和文体演变中理解。`,
     content: `围绕${topic}的概念范围、发展线索、思想内容和代表作家作品展开，避免只写抽象判断。`,

@@ -1951,6 +1951,12 @@ details summary::-webkit-details-marker {
   color: var(--muted);
 }
 
+.bank-question-tags .source-kind-tag {
+  background: rgba(158, 69, 52, 0.1);
+  color: var(--accent-strong);
+  border-color: rgba(158, 69, 52, 0.16);
+}
+
 .bank-question-main h4 {
   margin: 10px 0 0;
   font-family: var(--display);
@@ -2000,6 +2006,23 @@ details summary::-webkit-details-marker {
   color: var(--text);
   font-size: 10px;
   line-height: 1.65;
+}
+
+.bank-answer-preview .bank-source-trace {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  color: var(--muted);
+  font-family: var(--body);
+  font-size: 9px;
+  line-height: 1.7;
+}
+
+.bank-source-trace a {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--accent-strong);
+  font-weight: 700;
 }
 
 .mock-layout {
@@ -2311,6 +2334,12 @@ details summary::-webkit-details-marker {
     grid-column: 2;
     flex-direction: row;
     flex-wrap: wrap;
+  }
+
+  .bank-filter-group button,
+  .bank-question-actions button {
+    min-height: 44px;
+    padding: 11px 14px;
   }
 }
 

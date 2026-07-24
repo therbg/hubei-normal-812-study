@@ -9,11 +9,12 @@ import {
   type MemorizationCard,
 } from "./data";
 import { buildFrameworkStudyCard } from "./study-profiles";
+import { peerQuestions } from "./peer-questions";
 
 type Theme = "academy" | "sprint" | "calm";
 type View = "overview" | "outline" | "cards" | "bank" | "practice" | "mock";
 type AnswerMode = "outline" | "standard" | "high";
-type BankSource = "all" | "past" | "chapter" | "practice" | "mock";
+type BankSource = "all" | "past" | "peer" | "chapter" | "practice" | "mock";
 type BankType = "all" | "名词解释" | "简答题" | "论述题" | "写作题";
 type BankSubject = "all" | "ancient" | "modern" | "comprehensive";
 
@@ -403,6 +404,10 @@ type QuestionBankItem = {
   chapterKey?: string;
   cardId?: string;
   practiceIndex?: number;
+  sourceUrl?: string;
+  sourceKind?: string;
+  sourceSchool?: string;
+  sourceYear?: string;
 };
 
 const chapterQuestionBank: QuestionBankItem[] = chapterCardGroups.flatMap(
@@ -451,7 +456,25 @@ const mockQuestionBank: QuestionBankItem[] = mockExamSections.flatMap(
     })),
 );
 
+const peerQuestionBank: QuestionBankItem[] = peerQuestions.map((question) => ({
+  id: `bank-peer-${question.id}`,
+  source: "peer",
+  sourceLabel: `${question.school}·${question.year}`,
+  subject: question.subject,
+  type: question.type,
+  prompt: question.prompt,
+  score: question.score,
+  chapterTitle: question.chapterTitle,
+  answer: question.answer,
+  points: question.points,
+  sourceUrl: question.sourceUrl,
+  sourceKind: question.sourceKind,
+  sourceSchool: question.school,
+  sourceYear: question.year,
+}));
+
 const completeQuestionBank = [
+  ...peerQuestionBank,
   ...chapterQuestionBank,
   ...practiceQuestionBank,
   ...mockQuestionBank,
@@ -1514,14 +1537,18 @@ export default function Home() {
                 <p className="section-kicker">真题档案 + 全章节训练</p>
                 <h3>812文学综合全部题库</h3>
                 <p>
-                  一页查看教材章节题、专项训练和整卷模拟。真题只收录能核对来源的原卷，
-                  未核实题面不会用模拟题冒充。
+                  一页查看湖师真题档案、近年同范围真题、教材章节题、专项训练和整卷模拟。
+                  每道外校题都标明学校、年份及来源性质，不会冒充湖北师大真题。
                 </p>
               </div>
               <div className="bank-stat-grid">
                 <button onClick={() => setBankSource("past")}>
                   <strong>{verifiedPastPaperRecords.length}</strong>
                   <span>套真题档案</span>
+                </button>
+                <button onClick={() => setBankSource("peer")}>
+                  <strong>{peerQuestionBank.length}</strong>
+                  <span>道近年真题</span>
                 </button>
                 <button onClick={() => setBankSource("chapter")}>
                   <strong>{chapterQuestionBank.length}</strong>
@@ -1581,6 +1608,7 @@ export default function Home() {
                   {[
                     ["all", "全部"],
                     ["past", "湖师真题"],
+                    ["peer", "近年同范围真题"],
                     ["chapter", "教材章节题"],
                     ["practice", "专项训练"],
                     ["mock", "模拟题"],
@@ -1697,6 +1725,9 @@ export default function Home() {
                         <div className="bank-question-main">
                           <div className="bank-question-tags">
                             <span>{item.sourceLabel}</span>
+                            {item.sourceKind && (
+                              <span className="source-kind-tag">{item.sourceKind}</span>
+                            )}
                             <span>{item.type}</span>
                             <span>{item.score}分</span>
                             {item.subject !== "comprehensive" && (
@@ -1723,6 +1754,23 @@ export default function Home() {
                                     <li key={point}>{point}</li>
                                   ))}
                                 </ol>
+                              )}
+                              {item.sourceUrl && (
+                                <p className="bank-source-trace">
+                                  来源说明：本题选自
+                                  {item.sourceYear}年{item.sourceSchool}
+                                  {item.sourceKind === "官方原卷"
+                                    ? "公开发布的官方试卷"
+                                    : "公开发布的考后回忆版"}
+                                  ，仅用于按湖师812范围训练。
+                                  <a
+                                    href={item.sourceUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    核对来源
+                                  </a>
+                                </p>
                               )}
                               {!item.answer && !item.points && (
                                 <p>本题请进入模拟卷，在180分钟计时下独立完成。</p>

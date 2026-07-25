@@ -1147,12 +1147,94 @@ details summary::-webkit-details-marker {
   align-items: start;
 }
 
+.study-layout.library-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .card-library,
 .question-rail {
   position: sticky;
   top: 126px;
   overflow: hidden;
   padding: 22px;
+}
+
+.card-library .section-header {
+  align-items: flex-start;
+}
+
+.library-toggle-button {
+  display: inline-flex;
+  min-height: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--paper));
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.library-toggle-button span {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.library-toggle-button:hover,
+.library-toggle-button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+  background: var(--accent-soft);
+}
+
+.library-collapsed-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -8px 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.library-collapsed-toolbar p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.library-toggle-button.restore {
+  min-height: 42px;
+  padding-inline: 15px;
+}
+
+.study-layout.library-collapsed .memorize-stage {
+  padding-inline: clamp(30px, 5vw, 76px);
+}
+
+.study-layout.library-collapsed .memorize-heading h3 {
+  font-size: clamp(31px, 3.5vw, 46px);
+}
+
+.study-layout.library-collapsed .question-paper h4 {
+  font-size: clamp(20px, 2vw, 26px);
+}
+
+.study-layout.library-collapsed .answer-copy {
+  font-size: clamp(20px, 2vw, 27px);
+  line-height: 2.25;
+}
+
+.study-layout.library-collapsed .answer-paper {
+  padding: clamp(32px, 5vw, 58px);
+}
+
+.study-layout.library-collapsed .point-grid div {
+  font-size: 13px;
 }
 
 .card-filter-row {
@@ -2343,6 +2425,14 @@ details summary::-webkit-details-marker {
   .card-library,
   .question-rail {
     position: static;
+  }
+
+  .study-layout.library-collapsed .memorize-stage {
+    padding-inline: clamp(20px, 4vw, 34px);
+  }
+
+  .study-layout.library-collapsed .answer-copy {
+    font-size: clamp(18px, 2.7vw, 23px);
   }
 
   .card-list {

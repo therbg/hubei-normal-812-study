@@ -545,6 +545,7 @@ export default function Home() {
   );
   const [answerMode, setAnswerMode] = useState<AnswerMode>("standard");
   const [clozeHidden, setClozeHidden] = useState(true);
+  const [cardLibraryCollapsed, setCardLibraryCollapsed] = useState(false);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [practiceIndex, setPracticeIndex] = useState(0);
   const [showPoints, setShowPoints] = useState(false);
@@ -1338,13 +1339,30 @@ export default function Home() {
         )}
 
         {view === "cards" && (
-          <div className="page-content study-layout">
-            <aside className="card-library">
+          <div
+            className={
+              cardLibraryCollapsed
+                ? "page-content study-layout library-collapsed"
+                : "page-content study-layout"
+            }
+          >
+            {!cardLibraryCollapsed && (
+            <aside className="card-library" id="chapter-card-library">
               <div className="section-header">
                 <div>
                   <p className="section-kicker">按教材章节连续背诵</p>
                   <h3>{selectedChapterGroup.chapterTitle}</h3>
                 </div>
+                <button
+                  className="library-toggle-button"
+                  type="button"
+                  aria-controls="chapter-card-library"
+                  aria-expanded="true"
+                  onClick={() => setCardLibraryCollapsed(true)}
+                >
+                  <span aria-hidden="true">‹</span>
+                  收起目录
+                </button>
               </div>
               <label className="chapter-select">
                 <span>切换章节</span>
@@ -1383,8 +1401,24 @@ export default function Home() {
                 ))}
               </div>
             </aside>
+            )}
 
             <section className="memorize-stage">
+              {cardLibraryCollapsed && (
+                <div className="library-collapsed-toolbar">
+                  <button
+                    className="library-toggle-button restore"
+                    type="button"
+                    aria-controls="chapter-card-library"
+                    aria-expanded="false"
+                    onClick={() => setCardLibraryCollapsed(false)}
+                  >
+                    <span aria-hidden="true">☰</span>
+                    展开章节目录
+                  </button>
+                  <p>目录已收起，知识点进入大字背诵模式</p>
+                </div>
+              )}
               <div className="memorize-heading">
                 <div>
                   <p className="section-kicker">

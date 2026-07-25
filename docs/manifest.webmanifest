@@ -1,0 +1,11 @@
+{
+  "name": "湖师812文学综合学习台",
+  "short_name": "湖师812",
+  "description": "湖北师范大学学科教学（语文）812文学综合复习学习台",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2eee6",
+  "theme_color": "#8f3d32"
+}
